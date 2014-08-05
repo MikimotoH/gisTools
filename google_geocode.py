@@ -5,27 +5,30 @@ import json
 from urllib2 import quote, urlopen
 
 def warning(msg):
+    sys.stderr.write( "Warning: %s\n"%msg )
     pass
-    #sys.stderr.write( "Warning: %s\n"%msg )
     #print(u"WARNING: %s"% ustr, file=sys.stderr)
 
-def geocode(addr):
-    gurl = "http://maps.googleapis.com/maps/api/geocode/json?"+ \
+def geocode(addr, apiKey = ""):
+    gurl = "https://maps.googleapis.com/maps/api/geocode/json?"+ \
             "sensor=false&language=zh-TW&region=tw&address=%s" \
-            % quote(addr.decode('utf8').encode('utf8'))
+            % quote(addr.encode('utf8'))
+    if apiKey :
+        gurl += "&key=%s"%apiKey
     f = urlopen(gurl)
     s = f.read()
     x = json.loads(s)
-    if x['status'] != 'OK':
-        warning('status is "%s"' % x['status'])
-        return None
+    status = x['status']
+    if status != 'OK':
+        warning('status is "%s"' % status)
+        return (None, status)
     results = x['results']
     ret = []
     for i in range(0, len(results)):
         lat = results[i]['geometry']['location']['lat']
         lng = results[i]['geometry']['location']['lng']
         ret.append((lat,lng))
-    return ret
+    return (ret, status)
     
 
 
@@ -33,12 +36,15 @@ def main():
     if len(sys.argv) < 2 :
         sys.stderr.write("parameter address must be input")
         return 1
-    addr = sys.argv[1]
-    ret = geocode(addr)
-    if(ret == None):
+    addr = sys.argv[1].decode('utf8')
+    apiKey = sys.argv[2] if len(sys.argv)>2 else ""
+    ret, status = geocode(addr, apiKey)
+    if ret and len(ret)>0:
+        for i in range(0, len(ret)):
+            print("LatLng=%f,%f" % (ret[i][0], ret[i][1]))
+    else:
+        print('status = "%s"'% status)
         return 1
-    for i in range(0, len(ret)):
-        print("LatLng=%f,%f" % (ret[i][0], ret[i][1]))
 
 if __name__ == "__main__":
     main()

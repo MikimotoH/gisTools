@@ -4,48 +4,110 @@ from __future__ import print_function
 import dist_latlng
 import codecs
 import google_geocode
+import sys
+import os
+import time
+import json
 
 dist = lambda g1,g2: dist_latlng.dist_latlng(g1[0],g1[1], g2[0], g2[1])
 geocode = google_geocode.geocode
-validStr = lambda s: s != None and len(s)>0
+validStr = lambda s: s != None and len(s.strip())>0
+base_radius = 1.5 # kilometer
+g_geoDict_fname = 'geoDict.json'
+
+g_geoDict= {}
+def save_geoDict():
+    global g_geoDict
+    with codecs.open(g_geoDict_fname, mode = 'w', encoding='UTF-8') as f:
+        json.dump(g_geoDict, f, indent=4, ensure_ascii=False)
+
+def load_geoDict():
+    global g_geoDict
+    if os.path.isfile(g_geoDict_fname):
+        with open(g_geoDict_fname, 'r') as f:
+            g_geoDict = json.load(f, encoding='UTF-8')
+        # convert list of lists  => list of tuples
+        for k,v in g_geoDict.items():
+            g_geoDict[k] = [ tuple(x) for x in v] if v else v
+
+def list_elemAt(ls, i):
+    return ls[i] if len(ls)>i else None
+
+g_ApiKeys = [ "", "AIzaSyBjnn2SbcvBnF96kydq3UsRBtRDTb_MJjo", "AIzaSyD-yx9RoPoVu_hdm6jKjCWmbtIm5TB5c5o",
+    "AIzaSyASkqplWjjMyFGXboYB_Vr9PNoW6iScD0Y" ]
+g_queryCount=0
+
+def first_or_default(ls, predicate): 
+    return list_elemAt(filter( predicate, ls), 0)
+
+def process_route(fin,fout,numStats):
+    radius = 1
+    prevGeo = None
+
+    for iStat in range(0, numStats):
+        line = fin.readline()
+        cols = filter( validStr, map(unicode.strip, line.split('\t')))
+        if len(cols) < 2:
+            import pdb; pdb.set_trace()
+            fout.write(line )
+            continue
+        station = cols[0]
+        curGeo = tuple( map( float, cols[2].split(','))) if len(cols)>=3 else None
+        if not curGeo and iStat > 0 :
+            global g_geoDict
+            curGeo = g_geoDict.get(station, None)
+            if not curGeo:
+                global g_queryCount, g_ApiKeys
+                curGeo, status = geocode( station, g_ApiKeys[g_queryCount % len(g_ApiKeys) ] ) 
+                time.sleep(0.5)
+                g_queryCount+=1
+                g_geoDict[station] = curGeo
+                save_geoDict()
+            if not prevGeo or not curGeo:
+                fout.write(line)
+                radius += 1
+                if curGeo and len(curGeo)>0:
+                    prevGeo = curGeo[0]
+                continue
+            print (u'iStat=%d Station="%s" radius=%d, curGeo=%s'%(iStat, station, radius, curGeo))
+            curGeo = first_or_default(curGeo, lambda g: dist(g, prevGeo)<radius*base_radius )
+        if curGeo: 
+            fout.write(u"\t" + "%s\t%s\t%f,%f\n"%(station, cols[1], curGeo[0], curGeo[1]) )
+            fout.flush()
+            radius = 1
+            prevGeo = curGeo
+        else:
+            fout.write(u"\t" + "%s\t%s\t\n"%(station, cols[1]) )
+            fout.flush()
+            radius+=1
+
+def process(fin, fout):
+    line = fin.readline()
+    prevGeo=None
+    while validStr(line) :
+        if not line.startswith('\t'):
+            # bus name declaration
+            busName, goStats, backStats = line.split('\t')
+            if busName == u'208直':
+                import pdb; pdb.set_trace()
+
+            goStats = int(goStats)
+            backStats = int(backStats)
+            fout.write(line)
+            print(line.rstrip())
+            process_route(fin,fout, goStats)
+            process_route(fin,fout, backStats)
+            line = fin.readline()
+            continue
 
 
 def main():
-    with open('red13.txt', 'r') as fin, open('red13_out.txt', 'w') as fout:
-        line = fin.readline()
-        prevGeo=None
-        base_radius = 1.5 # kilometer
-        radius = base_radius
-        while validStr(line) :
-            if not line.startswith('\t'):
-                # bus name declaration
-                fout.write(line)
-                line = fin.readline()
-                continue
-            cols = filter( validStr, map(str.strip, line.split('\t')))
-            if cols[0] == '慈濟志業中心':
-                import pdb; pdb.set_trace()
-            if len(cols) == 3:
-                curGeo = tuple( map( float, cols[2].split(',')))
-            else:
-                curGeo = geocode( cols[0] )
-                if not prevGeo or not curGeo:
-                    fout.write(line)
-                    radius += base_radius
-                    line = fin.readline()
-                    prevGeo = curGeo[0] if len(curGeo)>0 else None
-                    continue
-                print ('stat="%s", radius=%f'%(cols[0], radius))
-                nearGeo = filter( lambda g: dist(g, prevGeo)<radius, curGeo)
-                curGeo = nearGeo[0] if nearGeo else None
-            if curGeo: 
-                fout.write("\t" + "%s\t%s\t%f,%f\n"%(cols[0], cols[1], curGeo[0], curGeo[1]) )
-                radius = base_radius
-            else:
-                fout.write("\t" + "%s\t%s\t\n"%(cols[0], cols[1]) )
-                radius += base_radius
-            prevGeo = curGeo
-            line = fin.readline()
+    finName = sys.argv[1] if len(sys.argv)>=2 else "all_buses_4.txt"
+    foutName = os.path.splitext(finName)[0] + '_out' + '.txt'
+    load_geoDict()      
+    with codecs.open(finName, mode='r', encoding='UTF-8') as fin, codecs.open(foutName, mode='w', encoding='UTF-8') as fout:
+        process(fin, fout)
 
 if __name__ == "__main__":
     main()
+
