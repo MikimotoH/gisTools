@@ -40,16 +40,22 @@ g_queryCount=0
 def first_or_default(ls, predicate): 
     return list_elemAt(filter( predicate, ls), 0)
 
-def process_route(fin,fout,numStats):
+def process_route(fin,fout,numStats, reverse = False):
     radius = 1
     prevGeo = None
 
+    lines = []
     for iStat in range(0, numStats):
-        line = fin.readline()
+        lines.append( fin.readline() )
+    if reverse:
+        lines.reverse()
+
+    for iStat in range(0, numStats):
+        line = lines[iStat]
         cols = filter( validStr, map(unicode.strip, line.split('\t')))
         if len(cols) < 2:
             import pdb; pdb.set_trace()
-            fout.write(line )
+            lines[iStat] = line
             continue
         station = cols[0]
         curGeo = tuple( map( float, cols[2].split(','))) if len(cols)>=3 else None
@@ -64,7 +70,7 @@ def process_route(fin,fout,numStats):
                 g_geoDict[station] = curGeo
                 save_geoDict()
             if not prevGeo or not curGeo:
-                fout.write(line)
+                lines[iStat] = line
                 radius += 1
                 if curGeo and len(curGeo)>0:
                     prevGeo = curGeo[0]
@@ -72,41 +78,44 @@ def process_route(fin,fout,numStats):
             print (u'iStat=%d Station="%s" radius=%d, curGeo=%s'%(iStat, station, radius, curGeo))
             curGeo = first_or_default(curGeo, lambda g: dist(g, prevGeo)<radius*base_radius )
         if curGeo: 
-            fout.write(u"\t" + "%s\t%s\t%f,%f\n"%(station, cols[1], curGeo[0], curGeo[1]) )
-            fout.flush()
+            lines[iStat] = u"\t" + "%s\t%s\t%f,%f\n"%(station, cols[1], curGeo[0], curGeo[1])
             radius = 1
             prevGeo = curGeo
         else:
-            fout.write(u"\t" + "%s\t%s\t\n"%(station, cols[1]) )
-            fout.flush()
+            lines[iStat] = u"\t" + "%s\t%s\t\n"%(station, cols[1])
             radius+=1
+    if reverse:
+        lines.reverse()
+    for iStat in range(0, numStats):
+        fout.write(lines[iStat])
+        fout.flush()
+                    
 
-def process(fin, fout):
+def process(fin, fout, reverse):
     line = fin.readline()
     prevGeo=None
     while validStr(line) :
         if not line.startswith('\t'):
             # bus name declaration
             busName, goStats, backStats = line.split('\t')
-            if busName == u'208直':
-                import pdb; pdb.set_trace()
 
             goStats = int(goStats)
             backStats = int(backStats)
             fout.write(line)
             print(line.rstrip())
-            process_route(fin,fout, goStats)
-            process_route(fin,fout, backStats)
+            process_route(fin,fout, goStats, reverse)
+            process_route(fin,fout, backStats, reverse)
             line = fin.readline()
             continue
 
 
 def main():
-    finName = sys.argv[1] if len(sys.argv)>=2 else "all_buses_4.txt"
+    finName = sys.argv[1] if len(sys.argv)>=2 else "all_buses_5.txt"
     foutName = os.path.splitext(finName)[0] + '_out' + '.txt'
+    reverse = True
     load_geoDict()      
     with codecs.open(finName, mode='r', encoding='UTF-8') as fin, codecs.open(foutName, mode='w', encoding='UTF-8') as fout:
-        process(fin, fout)
+        process(fin, fout, reverse)
 
 if __name__ == "__main__":
     main()
