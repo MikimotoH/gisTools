@@ -33,8 +33,7 @@ def load_geoDict():
 def list_elemAt(ls, i):
     return ls[i] if len(ls)>i else None
 
-g_ApiKeys = [ "", "AIzaSyBjnn2SbcvBnF96kydq3UsRBtRDTb_MJjo", "AIzaSyD-yx9RoPoVu_hdm6jKjCWmbtIm5TB5c5o",
-    "AIzaSyASkqplWjjMyFGXboYB_Vr9PNoW6iScD0Y" ]
+g_ApiKeys = []
 g_queryCount=0
 
 def first_or_default(ls, predicate): 
@@ -54,7 +53,6 @@ def process_route(fin,fout,numStats, reverse = False):
         line = lines[iStat]
         cols = filter( validStr, map(unicode.strip, line.split('\t')))
         if len(cols) < 2:
-            import pdb; pdb.set_trace()
             lines[iStat] = line
             continue
         station = cols[0]
@@ -110,8 +108,12 @@ def process(fin, fout, reverse):
 
 
 def main():
-    finName = sys.argv[1] if len(sys.argv)>=2 else "all_buses_5.txt"
+    finName = sys.argv[1] if len(sys.argv)>=2 else "all_buses_6.txt"
     foutName = os.path.splitext(finName)[0] + '_out' + '.txt'
+    global g_ApiKeys
+    
+    with open("apikeys.json", mode="r") as f:
+        g_ApiKeys = json.load(f, encoding='UTF-8')
     reverse = True
     load_geoDict()      
     with codecs.open(finName, mode='r', encoding='UTF-8') as fin, codecs.open(foutName, mode='w', encoding='UTF-8') as fout:
