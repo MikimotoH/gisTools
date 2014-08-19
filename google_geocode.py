@@ -3,7 +3,7 @@
 import sys
 import json
 from urllib.request import urlopen
-from urllib.parse import urlencode, quote
+from urllib.parse import urlencode
 
 
 def warning(msg):
@@ -25,12 +25,11 @@ def geocode(addr, apiKey=""):
     if apiKey:
         params.append('key', apiKey)
 
-    import pdb; pdb.set_trace()  # XXX BREAKPOINT
     js = get_web_json('https://maps.googleapis.com/maps/api/geocode/json?' +
-        urlencode(params))
+                      urlencode(params))
     status = js['status']
     if status != 'OK':
-        raise status
+        raise Exception(str(status))
     for res in js['results']:
         lat = res['geometry']['location']['lat']
         lng = res['geometry']['location']['lng']
@@ -43,10 +42,10 @@ def intersects(list1, list2):
 
 
 def get_intersection(list1, list2):
-    return list(set(list1) & set(list2) )
+    return list(set(list1) & set(list2))
 
 
-def reverse_geocode(lat,lng,apiKey=''):
+def reverse_geocode(lat, lng, apiKey=''):
     """return (postal_code) (country) State City District Village Street number
         as well as formatted_address using google API
     """
@@ -71,7 +70,7 @@ def reverse_geocode(lat,lng,apiKey=''):
     comps = list(filter(lambda t: t[1], map(
         lambda d: (d['long_name'], get_intersection(d['types'], adm_types)[0]), comps)))
     return {'formatted_address': result['formatted_address'],
-            'address_components': comps }
+            'address_components': comps}
 
 
 def main():
@@ -79,23 +78,23 @@ def main():
         sys.stderr.write("parameter address must be input")
         return 1
     addr = sys.argv[1]
-    lat,lng=None,None
+    lat, lng = None, None
     try:
-        lat,lng=list(map(float, addr.split(',')))
+        lat, lng = list(map(float, addr.split(',')))
     except:
         pass
 
     apiKey = sys.argv[2] if len(sys.argv) > 2 else ""
 
     try:
-        if lat :
-            ret = reverse_geocode(lat,lng, apiKey)
+        if lat:
+            ret = reverse_geocode(lat, lng, apiKey)
             print(ret['formatted_address'])
         else:
             for ret in geocode(addr, apiKey):
                 print("LatLng=%f,%f" % (ret[0], ret[1]))
     except str as status:
-        warning('status is "%s"' % status)
+        warning('status is "%s"' % str(status))
 
 
 if __name__ == "__main__":
