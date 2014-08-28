@@ -84,7 +84,7 @@ def nearby_bus_stations(lat, lng, apikey=""):
                 continue
             buses = list(filter(lambda s: len(s.strip()) > 0,
                                 bus_elm.text_content().strip().split()))
-            yield (station, float(loc['lat']), float(loc['lat']), buses)
+            yield (station, float(loc['lat']), float(loc['lng']), buses)
     else:
         warning("status=" + places['status'])
 
